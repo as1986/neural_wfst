@@ -24,7 +24,6 @@ from libcpp cimport bool
 from cython.operator cimport dereference as deref, preincrement as inc
 from arsenal.alphabet import Alphabet
 from collections import defaultdict as dd
-import fst
 
 ctypedef vector[vector[vector[vector[vector[int]]]]] FEATURES
 ctypedef vector[vector[vector[vector[vector[vector[int]]]]]] FEATURES_ALL
@@ -724,106 +723,6 @@ cdef class Transducer:
         #print float(computed) / total
 
         
-    def crunch(self, string1, W, n=1, V=False):
-        """ Crunching  """
-
-        #print "STRING1"
-        #print string1
-        viterbi_score, viterbi_best = self.decode(string1, W, V=True)
-        # get partition function
-        string1_size = len(string1)
-        cdef double[:, :, :] B = empty((string1_size+1, string1_size+1+self.insertion_limit, self.Sigma_size))
-        cdef int[:, :, :, :] mask = self._pruning_mask(string1_size, W, 0.0)
-        self.backward_expected(string1_size, W, B, mask)
-        logZ = B[0, 0, 0]
-
-        machine = self.to_openfst(string1, W)
-        table = {}
-        for path in machine.shortest_path(n=n).paths():
-            decoded = []
-            score = fst.TropicalWeight.ONE
-            for arc in path:
-                score *= arc.weight
-                if arc.ilabel > 0:
-                    decoded.append(arc.ilabel)
-            key = tuple(decoded)
-            if key not in table:
-                table[key] = -np.inf
-            #print "crunched", list(key), -float(score)
-            table[key] = logaddexp(table[key], -float(score))
-            
-        max_v = 0.0
-        best = None
-        for k, v in table.items():
-            if v >= max_v:
-                best = k
-                max_v = v
-        best = list(best)
-        #id2label = {1: '^', 2: u'a', 3: u'c', 4: u'b', 5: u'e', 6: u'd', 7: u'g', 8: u'f', 9: u'i', 10: u'h', 11: u'k', 12: u'j', 13: u'm', 14: u'l', 15: u'o', 16: u'n', 17: u'q', 18: u'p', 19: u's', 20: u'r', 21: u'u', 22: u't', 23: u'w', 24: u'v', 25: u'y', 26: u'x', 27: u'z'}
-        #print "INPUT", "".join(map(lambda x: id2label[x], string1))
-        #print "CRUNCH:", "".join(map(lambda x: id2label[x], best)), max_v
-        #print "VITERBI:", "".join(map(lambda x : id2label[x], viterbi_best)), viterbi_score
-        #print
-        print "CRUNCH", best, exp(max_v - logZ)
-        print "VITERBI", viterbi_best, exp(viterbi_score - logZ)
-        print
-        if V:
-            return max_v, best
-        return best
-            
-
-    def to_openfst(self, string1, W):
-        """ 
-        The forward algorithm over the tropical semiring 
-
-        TOOD: need a better unit test. 
-        Test in transducer_behavior.py shows it works
-        """
-
-        string1_size = len(string1)
-        state = Alphabet()
-        state.add((0, 0, 0))
-        
-        t = fst.Acceptor()
-        t.add_state()
-        t.start = 0
-
-        for i in xrange(0, string1_size+1, 1):
-            for j in xrange(0, string1_size+1+self.insertion_limit, 1):
-                if i == 0 and j == 0:
-                    continue
-
-                for x in xrange(0, self.Sigma_size):
-                    # deletion
-                    if i > 0:
-                        val = W[i, x, 0, 1]
-                        source = state[(i-1, j, x)]
-                        target = state[(i, j, x)]
-                        t.add_arc(source, target, fst.EPSILON, -val)
-
-                    for y in xrange(1, self.Sigma_size):
-                        # substitution
-                        if i > 0 and j > 0:
-                            val = W[i, x, y, 0]
-                            source = state[(i-1, j-1, x)]
-                            target = state[(i, j, y)]
-                            t.add_arc(source, target, str(y), -val)
-
-                        # insertion
-                        if j > 0:
-                            val = W[i, x, y, 2]
-                            source = state[(i, j-1, x)]
-                            target = state[(i, j, y)]
-                            t.add_arc(source, target, str(y), -val)
-        # add final states
-        for j in xrange(string1_size+1+self.insertion_limit):
-            for y in xrange(self.Sigma_size):
-                stateid = state[(string1_size, j, y)]
-                t[stateid].final = True
-                
-        return t
-                            
-
     def fd_check(self, string1, string2, W, EPS=0.01, ATOL=0.01):
         " Finite difference check to verify the gradient "
 
@@ -962,7 +861,6 @@ cdef class Transducer:
         lowest_yield = list(lowest_yield)        
         # TODO: enumeration unit test for gradient 
         score, decoded = self.decode(string1, W, V=True)
-        score_crunched, decoded_crunched = self.crunch(string1, W, n=N, V=True)
         
         try:
             assert best_yield == decoded
@@ -971,22 +869,6 @@ cdef class Transducer:
         except:
             print 'Failed  best_yield == decoded'
             exit(1)
-        try:
-            assert lowest_yield == decoded_crunched
-            print 'crunched best_yield', lowest_yield, lowest_score
-            print 'crunched decoded', decoded_crunched, score_crunched
-        except:
-            print 'Failed  lowest_yield == decoded_crunched'
-            exit(1)
-        try:
-            assert score_crunched >= score
-            assert np.allclose(log(best_score), score, atol=ATOL)
-            assert np.allclose(lowest_score, score_crunched, atol=ATOL)
-        except:
-            print 'best_score', log(best_score)
-            print 'score', score
-            print 'Failed'
-            exit(0)
     #
     # This isn't *that* big of a deal because the combination
     # of an enumeration tes for the likelihood and a finte-difference
