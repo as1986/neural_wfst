@@ -161,7 +161,7 @@ def args_creation_part2(args, data):
     args.endpoint = transducer_wrapper.TransducerWrapper(
         Transducer(data.vocsize, INSERTION_LIMIT),
         sampling_decoding=args.sampling_decoding,
-        crunching=args.crunching)
+        crunching=args.crunching, ryanout=args.ryanout)
     args.endpoint.dont_pickle = 1
     print args.endpoint
     #-------------------------------------------------------#
@@ -269,7 +269,6 @@ def main(*_fold_info, **kwargs):
     args = args_creation_part2(args, data)
     args = update_args(args, kwargs)
     args.diff_kwargs = kwargs
-
 
     # Start each run in a fresh directory to avoid interference
     # with other running processes and avoiding overwriting results of

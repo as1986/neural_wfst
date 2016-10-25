@@ -85,15 +85,21 @@ def validate_predictions_transducer(
         words_valid, fn='/current.valid.txt', conv_x_to_batch=False):
     ''' Validate the predictions made by the transducer.
     '''
+    label2idx = {v:int(k) for k,v in idx2label.iteritems()}
+    from os.path import isfile
     correct = 0.0
     print 'Writing predictions to ', (args.folder + fn)
     with codecs.open(args.folder + fn, mode="w", encoding="utf8") as f:
         f.write('input prediction goldOutput\n')
         for (x, y) in zip(test_lex, groundtruth_valid):
+            mid_column = (x.shape[1] - 1) / 2
+            out_name = args.ryanout+"/"+".".join([str(e) for e in x[:, mid_column][1:]])+".fst"
+            print 'output fname:{}'.format(out_name)
+            if isfile(out_name):
+                continue
             y = ''.join(list(y))
             prediction = ''.join([idx2label[e] for e in f_classify(x)])
             assert x.shape[1] % 2 == 1
-            mid_column = (x.shape[1] - 1) / 2
             x = ''.join([idx2label[e] for e in x[:, mid_column]])
             f.write('%s %s %s\n' % (x, prediction, y))
             correct += (prediction == y)

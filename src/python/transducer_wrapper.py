@@ -8,7 +8,7 @@
 |     Update #: 8
 '''
 class TransducerWrapper(object):
-    def __init__(self, _transducer, sampling_decoding=0, crunching=0):
+    def __init__(self, _transducer, sampling_decoding=0, crunching=0, ryanout=None):
         ''' Cython object dont support attribute assignments and they
         can't be pickled (at least not that I know of.) Both of these
         together are a problem. So I just create a wrapper of the
@@ -19,6 +19,8 @@ class TransducerWrapper(object):
         -------
         '''
         assert not(sampling_decoding and crunching)
+        assert ryanout is not None
+        self.ryanout = ryanout
         self._transducer = _transducer
         self.sd = sampling_decoding
         self.crunching = crunching
@@ -35,7 +37,13 @@ class TransducerWrapper(object):
             return self._transducer.sample(*params)
         elif self.crunching > 0:
             params = list(args) + [self.crunching]
-            return self._transducer.crunch(*params)
+            best, machine, string1 = self._transducer.crunch(*params)
+            out_name = self.ryanout+"/"+".".join(map(str, string1))+".fst"
+            from os.path import isfile
+            if not isfile(out_name):
+                machine.write(out_name)
+
+            return best
         else:
             return self._transducer.decode(*args)
 

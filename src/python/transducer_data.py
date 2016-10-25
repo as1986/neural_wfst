@@ -110,8 +110,14 @@ def main(args):
             # sigma :: char -> int
             sigma = dict((b, a+1) for (a,b) in enumerate(lst_char))
 
+            
+
             # sigma_inv :: int -> char
             sigma_inv = dict((a+1, b) for (a,b) in enumerate(lst_char))
+
+            with codecs.open(args.ryanout+"/"+"sigma.txt", 'wb', encoding='utf8') as sigmaf:
+                for k, v in sigma_inv.items():
+                    sigmaf.write(u"\t".join(map(unicode, [k, v]))+u"\n")
 
             if args.limit_corpus > 0:
                 data_list = data_list[:args.limit_corpus]

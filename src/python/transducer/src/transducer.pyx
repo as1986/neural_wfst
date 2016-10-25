@@ -725,7 +725,7 @@ cdef class Transducer:
 
         
     def crunch(self, string1, W, n=1, V=False):
-        """ Crunching  """
+        """ Crunching """
 
         #print "STRING1"
         #print string1
@@ -739,7 +739,8 @@ cdef class Transducer:
 
         machine = self.to_openfst(string1, W)
         table = {}
-        for path in machine.shortest_path(n=n).paths():
+        shortest_paths = machine.shortest_path(n=n).paths()
+        for path in shortest_paths:
             decoded = []
             score = fst.TropicalWeight.ONE
             for arc in path:
@@ -752,39 +753,44 @@ cdef class Transducer:
             #print "crunched", list(key), -float(score)
             table[key] = logaddexp(table[key], -float(score))
             
-        max_v = 0.0
+        max_v = None
         best = None
         for k, v in table.items():
-            if v >= max_v:
+            if max_v is None or v >= max_v:
                 best = k
                 max_v = v
         best = list(best)
-        #id2label = {1: '^', 2: u'a', 3: u'c', 4: u'b', 5: u'e', 6: u'd', 7: u'g', 8: u'f', 9: u'i', 10: u'h', 11: u'k', 12: u'j', 13: u'm', 14: u'l', 15: u'o', 16: u'n', 17: u'q', 18: u'p', 19: u's', 20: u'r', 21: u'u', 22: u't', 23: u'w', 24: u'v', 25: u'y', 26: u'x', 27: u'z'}
-        #print "INPUT", "".join(map(lambda x: id2label[x], string1))
-        #print "CRUNCH:", "".join(map(lambda x: id2label[x], best)), max_v
-        #print "VITERBI:", "".join(map(lambda x : id2label[x], viterbi_best)), viterbi_score
-        #print
+        # id2label = {1: '^', 2: u'a', 3: u'c', 4: u'b', 5: u'e', 6: u'd', 7: u'g', 8: u'f', 9: u'i', 10: u'h', 11: u'k', 12: u'j', 13: u'm', 14: u'l', 15: u'o', 16: u'n', 17: u'q', 18: u'p', 19: u's', 20: u'r', 21: u'u', 22: u't', 23: u'w', 24: u'v', 25: u'y', 26: u'x', 27: u'z'}
+        # print "INPUT", "".join(map(lambda x: id2label[x], string1))
+        # print "CRUNCH:", "".join(map(lambda x: id2label[x], best)), max_v
+        # print "VITERBI:", "".join(map(lambda x : id2label[x], viterbi_best)), viterbi_score
+        print
         print "CRUNCH", best, exp(max_v - logZ)
         print "VITERBI", viterbi_best, exp(viterbi_score - logZ)
         print
+       
         if V:
-            return max_v, best
-        return best
+            return max_v, best, machine
+        return best, machine, string1
             
 
     def to_openfst(self, string1, W):
         """ 
         The forward algorithm over the tropical semiring 
 
-        TOOD: need a better unit test. 
+        TODO: need a better unit test. 
         Test in transducer_behavior.py shows it works
         """
 
         string1_size = len(string1)
         state = Alphabet()
         state.add((0, 0, 0))
-        
-        t = fst.Acceptor()
+        isyms = fst.SymbolTable()
+        osyms = fst.SymbolTable()
+        for x in xrange(1, self.Sigma_size*2):
+            isyms[str(x)] = x
+            osyms[str(x)] = x
+        t = fst.Transducer(isyms=isyms, osyms=osyms)
         t.add_state()
         t.start = 0
 
@@ -799,7 +805,7 @@ cdef class Transducer:
                         val = W[i, x, 0, 1]
                         source = state[(i-1, j, x)]
                         target = state[(i, j, x)]
-                        t.add_arc(source, target, fst.EPSILON, -val)
+                        t.add_arc(source, target, str(string1[i-1]), fst.EPSILON, -val)
 
                     for y in xrange(1, self.Sigma_size):
                         # substitution
@@ -807,14 +813,14 @@ cdef class Transducer:
                             val = W[i, x, y, 0]
                             source = state[(i-1, j-1, x)]
                             target = state[(i, j, y)]
-                            t.add_arc(source, target, str(y), -val)
+                            t.add_arc(source, target, str(string1[i-1]), str(y), -val)
 
                         # insertion
                         if j > 0:
                             val = W[i, x, y, 2]
                             source = state[(i, j-1, x)]
                             target = state[(i, j, y)]
-                            t.add_arc(source, target, str(y), -val)
+                            t.add_arc(source, target, fst.EPSILON, str(y), -val)
         # add final states
         for j in xrange(string1_size+1+self.insertion_limit):
             for y in xrange(self.Sigma_size):
