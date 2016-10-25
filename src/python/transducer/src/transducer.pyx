@@ -24,7 +24,6 @@ from libcpp cimport bool
 from cython.operator cimport dereference as deref, preincrement as inc
 from arsenal.alphabet import Alphabet
 from collections import defaultdict as dd
-import fst
 
 ctypedef vector[vector[vector[vector[vector[int]]]]] FEATURES
 ctypedef vector[vector[vector[vector[vector[vector[int]]]]]] FEATURES_ALL
@@ -724,6 +723,7 @@ cdef class Transducer:
         #print float(computed) / total
 
         
+<<<<<<< HEAD
     def crunch(self, string1, W, n=1, V=False):
         """ Crunching """
 
@@ -830,6 +830,8 @@ cdef class Transducer:
         return t
                             
 
+=======
+>>>>>>> 4d469e119f1f08b4a396a44a004618de5957b0d4
     def fd_check(self, string1, string2, W, EPS=0.01, ATOL=0.01):
         " Finite difference check to verify the gradient "
 
@@ -968,7 +970,6 @@ cdef class Transducer:
         lowest_yield = list(lowest_yield)        
         # TODO: enumeration unit test for gradient 
         score, decoded = self.decode(string1, W, V=True)
-        score_crunched, decoded_crunched = self.crunch(string1, W, n=N, V=True)
         
         try:
             assert best_yield == decoded
@@ -977,22 +978,6 @@ cdef class Transducer:
         except:
             print 'Failed  best_yield == decoded'
             exit(1)
-        try:
-            assert lowest_yield == decoded_crunched
-            print 'crunched best_yield', lowest_yield, lowest_score
-            print 'crunched decoded', decoded_crunched, score_crunched
-        except:
-            print 'Failed  lowest_yield == decoded_crunched'
-            exit(1)
-        try:
-            assert score_crunched >= score
-            assert np.allclose(log(best_score), score, atol=ATOL)
-            assert np.allclose(lowest_score, score_crunched, atol=ATOL)
-        except:
-            print 'best_score', log(best_score)
-            print 'score', score
-            print 'Failed'
-            exit(0)
     #
     # This isn't *that* big of a deal because the combination
     # of an enumeration tes for the likelihood and a finte-difference
